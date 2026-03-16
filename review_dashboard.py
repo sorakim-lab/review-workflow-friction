@@ -59,6 +59,14 @@ html, body, [class*="css"] {
     margin-bottom: 16px;
 }
 
+.chart-title {
+    font-size: 14px;
+    font-weight: 600;
+    color: #1d1d1f;
+    margin-bottom: 8px;
+    line-height: 1.3;
+}
+
 .tag {
     display: inline-block;
     background: #f0f0f5;
@@ -176,8 +184,21 @@ def load_data():
 
 df = load_data()
 
-def pretty_label(text):
+def display_label(text):
     return str(text).replace("_", " ")
+
+def axis_label(text):
+    text = str(text).replace("_", " ")
+    mapping = {
+        "missing information": "missing<br>information",
+        "cross reference issue": "cross reference<br>issue",
+        "compliance concern": "compliance<br>concern",
+        "evidence gap": "evidence<br>gap",
+    }
+    return mapping.get(text, text)
+
+def chart_title(text):
+    st.markdown(f'<div class="chart-title">{text}</div>', unsafe_allow_html=True)
 
 def classify_comment(text):
     t = text.lower().strip()
@@ -227,23 +248,24 @@ def classify_comment(text):
 
     return None, None, None, []
 
-def base_layout(title):
+def base_layout():
     return dict(
-        title=title,
         plot_bgcolor="white",
         paper_bgcolor="white",
-        font=dict(family="Inter", size=12),
-        title_font=dict(family="Inter", size=14),
-        margin=dict(t=50, b=95, l=40, r=20),
+        font=dict(family="Inter", size=12, color="#3a3a3c"),
+        margin=dict(t=12, b=88, l=40, r=20),
         xaxis=dict(
             type="category",
-            tickangle=-22,
+            tickangle=-16,
             tickfont=TICK_FONT,
             title_font=dict(family="Inter", size=12),
+            automargin=True,
+            categoryorder="array",
         ),
         yaxis=dict(
             tickfont=TICK_FONT,
             title_font=dict(family="Inter", size=12),
+            automargin=True
         ),
     )
 
@@ -343,40 +365,52 @@ with tab1:
 
     cat = df["CommentCategory"].value_counts().reset_index()
     cat.columns = ["Category", "Count"]
-    cat["Label"] = cat["Category"].apply(pretty_label)
+    cat["AxisLabel"] = cat["Category"].apply(axis_label)
 
     fig1 = go.Figure()
     for i, row in cat.iterrows():
         fig1.add_trace(go.Bar(
-            x=[row["Label"]],
+            x=[row["AxisLabel"]],
             y=[row["Count"]],
             marker_color=PALETTE[i % len(PALETTE)],
+            width=0.68,
             showlegend=False,
-            hovertemplate=f"Category: {row['Label']}<br>Count: {row['Count']}<extra></extra>"
+            hovertemplate=f"Category: {display_label(row['Category'])}<br>Count: {row['Count']}<extra></extra>"
         ))
-    fig1.update_layout(**base_layout("Comment Category Distribution"), bargap=0.32)
+    fig1.update_layout(**base_layout(), bargap=0.22)
 
     with col_a:
+        chart_title("Comment Category Distribution")
         st.plotly_chart(fig1, use_container_width=True)
 
     sev = df["Severity"].value_counts().reset_index()
     sev.columns = ["Severity", "Count"]
+
     fig2 = px.pie(
         sev,
         names="Severity",
         values="Count",
-        title="Severity Breakdown",
         color="Severity",
         color_discrete_map=SEV_COLOR,
         hole=0.45
     )
+    fig2.update_traces(textfont_size=12)
     fig2.update_layout(
+        plot_bgcolor="white",
         paper_bgcolor="white",
-        font=dict(family="Inter", size=12),
-        title_font_size=14
+        font=dict(family="Inter", size=12, color="#3a3a3c"),
+        margin=dict(t=10, b=55, l=10, r=10),
+        legend=dict(
+            orientation="h",
+            y=-0.08,
+            x=0.5,
+            xanchor="center",
+            font=dict(family="Inter", size=12)
+        )
     )
 
     with col_b:
+        chart_title("Severity Breakdown")
         st.plotly_chart(fig2, use_container_width=True)
 
     col_c, col_d = st.columns(2)
@@ -391,11 +425,13 @@ with tab1:
             text=[row["DaysToReturn"]],
             textposition="outside",
             textfont=dict(family="Inter", size=12),
+            width=0.62,
             showlegend=False
         ))
-    fig3.update_layout(**base_layout("Avg Turnaround by Reviewer Role"), bargap=0.4)
+    fig3.update_layout(**base_layout(), bargap=0.32)
 
     with col_c:
+        chart_title("Avg Turnaround by Reviewer Role")
         st.plotly_chart(fig3, use_container_width=True)
 
     rd = df["ReviewRound"].value_counts().sort_index().reset_index()
@@ -413,11 +449,13 @@ with tab1:
             x=[str(int(row["Round"]))],
             y=[row["Count"]],
             marker_color=color,
+            width=0.62,
             showlegend=False
         ))
-    fig4.update_layout(**base_layout("Review Round Distribution"), bargap=0.3)
+    fig4.update_layout(**base_layout(), bargap=0.30)
 
     with col_d:
+        chart_title("Review Round Distribution")
         st.plotly_chart(fig4, use_container_width=True)
 
 # ==========================
@@ -449,17 +487,16 @@ with tab2:
         hovertemplate="Role: %{y}<br>DocType: %{x}<br>Avg Days: %{z}<extra></extra>"
     ))
     fig_h1.update_layout(
-        title="Avg Turnaround: Reviewer × Doc Type",
-        paper_bgcolor="white",
         plot_bgcolor="white",
+        paper_bgcolor="white",
         font=dict(family="Inter", size=12),
-        title_font_size=14,
-        margin=dict(l=20, r=20, t=50, b=20)
+        margin=dict(l=20, r=20, t=12, b=20)
     )
     fig_h1.update_xaxes(tickfont=TICK_FONT)
     fig_h1.update_yaxes(tickfont=TICK_FONT)
 
     with h1:
+        chart_title("Avg Turnaround: Reviewer × Doc Type")
         st.plotly_chart(fig_h1, use_container_width=True)
 
     pivot2 = df.pivot_table(
@@ -480,24 +517,23 @@ with tab2:
         hovertemplate="Role: %{y}<br>%{x}<br>Events: %{z}<extra></extra>"
     ))
     fig_h2.update_layout(
-        title="Revision Loop Frequency: Reviewer × Round",
-        paper_bgcolor="white",
         plot_bgcolor="white",
+        paper_bgcolor="white",
         font=dict(family="Inter", size=12),
-        title_font_size=14,
-        margin=dict(l=20, r=20, t=50, b=20)
+        margin=dict(l=20, r=20, t=12, b=20)
     )
     fig_h2.update_xaxes(tickfont=TICK_FONT)
     fig_h2.update_yaxes(tickfont=TICK_FONT)
 
     with h2:
+        chart_title("Revision Loop Frequency: Reviewer × Round")
         st.plotly_chart(fig_h2, use_container_width=True)
 
     st.markdown("**High-friction zones** — top 10 slowest review events")
     top_slow = df.nlargest(10, "DaysToReturn")[
         ["CaseID", "DocType", "ReviewerRole", "ReviewRound", "CommentCategory", "Severity", "DaysToReturn", "Reopened"]
     ].reset_index(drop=True)
-    top_slow["CommentCategory"] = top_slow["CommentCategory"].apply(pretty_label)
+    top_slow["CommentCategory"] = top_slow["CommentCategory"].apply(display_label)
     st.dataframe(top_slow, use_container_width=True, hide_index=True)
 
 # ==========================
@@ -540,7 +576,7 @@ with tab3:
                 <div style="padding:6px 0;">
                   <span style="font-size:13px;color:#1d1d1f;">{item}</span><br>
                   <span class="tag {color_class}">{severity}</span>
-                  <span class="tag blue">{pretty_label(category)}</span>
+                  <span class="tag blue">{display_label(category)}</span>
                 </div>
                 """, unsafe_allow_html=True)
 
@@ -606,7 +642,7 @@ with tab3:
                 st.markdown(f"""
                 <div class="support-bubble">
                   <div class="support-label">CLASSIFICATION RESULT</div>
-                  <span class="tag blue">{pretty_label(r['cat'])}</span>
+                  <span class="tag blue">{display_label(r['cat'])}</span>
                   <span class="tag {sev_color}">{r['sev']}</span>
                   <span class="tag purple">rule-based</span>
                   <div style="margin-top:10px;font-size:13px;color:#3a3a3c;line-height:1.6;">{r['expl']}</div>
@@ -630,7 +666,7 @@ with tab3:
         avg_days=("DaysToReturn", "mean"),
         reopen_rate=("Reopened", lambda x: (x == "yes").mean() * 100),
     ).round(1).sort_values("avg_days", ascending=False)
-    friction["Label"] = friction["CommentCategory"].apply(pretty_label)
+    friction["AxisLabel"] = friction["CommentCategory"].apply(axis_label)
 
     fig_f = go.Figure()
     for _, row in friction.iterrows():
@@ -638,19 +674,17 @@ with tab3:
         r_val = 255
         g_val = int(59 + (1 - intensity) * 150)
         fig_f.add_trace(go.Bar(
-            x=[row["Label"]],
+            x=[row["AxisLabel"]],
             y=[row["avg_days"]],
             marker_color=f"rgba({r_val},{g_val},48,0.85)",
             text=[row["avg_days"]],
             textposition="outside",
             textfont=dict(family="Inter", size=12),
+            width=0.68,
             showlegend=False,
-            hovertemplate=f"Category: {row['Label']}<br>Avg days: {row['avg_days']}<br>Reopen rate: {row['reopen_rate']}%<extra></extra>"
+            hovertemplate=f"Category: {display_label(row['CommentCategory'])}<br>Avg days: {row['avg_days']}<br>Reopen rate: {row['reopen_rate']}%<extra></extra>"
         ))
-    fig_f.update_layout(
-        **base_layout("Avg Turnaround by Category (color intensity = reopen rate)"),
-        bargap=0.32
-    )
+    fig_f.update_layout(**base_layout(), bargap=0.22)
     st.plotly_chart(fig_f, use_container_width=True)
 
 # ==========================
@@ -708,7 +742,7 @@ with tab4:
               {row['ReviewerRole']} · {row['CommentTextShort']} {reopen_badge}
             </div>
             <div style="font-size:12px;color:#86868b;">
-              <span class="tag">{pretty_label(row['CommentCategory'])}</span>
+              <span class="tag">{display_label(row['CommentCategory'])}</span>
               <span class="tag {sev_class}">{row['Severity']}</span>
               <span style="margin-left:8px;">⏱ {int(row['DaysToReturn'])}d to return</span>
             </div>
@@ -746,17 +780,17 @@ with tab4:
         secondary_y=True
     )
     fig_journey.update_layout(
-        title=f"Round-by-Round Summary · {selected_case}",
         plot_bgcolor="white",
         paper_bgcolor="white",
         font=dict(family="Inter", size=12),
-        title_font_size=14,
-        legend=dict(orientation="h", y=1.1)
+        margin=dict(t=12, b=20, l=30, r=20),
+        legend=dict(orientation="h", y=1.08)
     )
     fig_journey.update_xaxes(type="category", tickfont=TICK_FONT)
     fig_journey.update_yaxes(tickfont=TICK_FONT, title_text="Events", secondary_y=False)
     fig_journey.update_yaxes(tickfont=TICK_FONT, title_text="Avg Days", secondary_y=True)
 
+    chart_title(f"Round-by-Round Summary · {selected_case}")
     st.plotly_chart(fig_journey, use_container_width=True)
 
 # ==========================
@@ -891,7 +925,7 @@ with tab6:
             avg_days=("DaysToReturn", "mean"),
             reopen_rate=("Reopened", lambda x: (x == "yes").mean() * 100)
         ).round(1).reset_index()
-        role_stats["CommentCategory"] = role_stats["CommentCategory"].apply(pretty_label)
+        role_stats["CommentCategory"] = role_stats["CommentCategory"].apply(display_label)
 
         st.markdown(f"**{sim_role} reviewer patterns**")
         st.dataframe(role_stats, use_container_width=True, hide_index=True)
@@ -922,7 +956,7 @@ with tab6:
 
                 r1, r2, r3, r4, r5 = st.columns(5)
                 cards = [
-                    (r1, pretty_label(cat_r), "Comment Type", "#007aff"),
+                    (r1, display_label(cat_r), "Comment Type", "#007aff"),
                     (r2, sev_r, "Severity", {"major": "#ff3b30", "moderate": "#ff9500", "minor": "#34c759"}[sev_r]),
                     (r3, f"{adjusted_days:.1f}d", "Expected Turnaround", "#5856d6"),
                     (r4, f"{adjusted_reopen:.0f}%", "Reopen Likelihood", "#ff9500"),
@@ -973,7 +1007,7 @@ with tab6:
                 """, unsafe_allow_html=True)
 
                 st.markdown("---")
-                st.markdown("**How this comment type compares across all reviewers**")
+                chart_title(f"Avg Turnaround for '{display_label(cat_r)}' by Role")
 
                 compare = df[df["CommentCategory"] == cat_r].groupby("ReviewerRole", as_index=False).agg(
                     avg_days=("DaysToReturn", "mean"),
@@ -989,13 +1023,11 @@ with tab6:
                         text=[row["avg_days"]],
                         textposition="outside",
                         textfont=dict(family="Inter", size=12),
+                        width=0.62,
                         showlegend=False,
                         hovertemplate=f"Role: {row['ReviewerRole']}<br>Avg days: {row['avg_days']}<br>Reopen rate: {row['reopen_rate']}%<extra></extra>"
                     ))
-                fig_comp.update_layout(
-                    **base_layout(f"Avg Turnaround for '{pretty_label(cat_r)}' by Role"),
-                    bargap=0.4
-                )
+                fig_comp.update_layout(**base_layout(), bargap=0.30)
                 st.plotly_chart(fig_comp, use_container_width=True)
         else:
             st.warning("Please enter a review comment to run the simulation.")
