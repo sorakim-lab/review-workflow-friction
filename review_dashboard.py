@@ -191,7 +191,7 @@ def axis_label(text):
     text = str(text).replace("_", " ")
     mapping = {
         "missing information": "missing<br>information",
-        "cross reference issue": "cross reference<br>issue",
+        "cross reference issue": "cross<br>reference<br>issue",
         "compliance concern": "compliance<br>concern",
         "evidence gap": "evidence<br>gap",
     }
@@ -253,11 +253,11 @@ def base_layout():
         plot_bgcolor="white",
         paper_bgcolor="white",
         font=dict(family="Inter", size=12, color="#3a3a3c"),
-        margin=dict(t=12, b=88, l=40, r=20),
+        margin=dict(t=12, b=120, l=40, r=20),
         xaxis=dict(
             type="category",
-            tickangle=-16,
-            tickfont=TICK_FONT,
+            tickangle=0,
+            tickfont=dict(family="Inter", size=11, color="#3a3a3c"),
             title_font=dict(family="Inter", size=12),
             automargin=True,
             categoryorder="array",
@@ -377,7 +377,7 @@ with tab1:
             showlegend=False,
             hovertemplate=f"Category: {display_label(row['Category'])}<br>Count: {row['Count']}<extra></extra>"
         ))
-    fig1.update_layout(**base_layout(), bargap=0.22)
+    fig1.update_layout(**base_layout(), bargap=0.22, height=420)
 
     with col_a:
         chart_title("Comment Category Distribution")
@@ -684,7 +684,7 @@ with tab3:
             showlegend=False,
             hovertemplate=f"Category: {display_label(row['CommentCategory'])}<br>Avg days: {row['avg_days']}<br>Reopen rate: {row['reopen_rate']}%<extra></extra>"
         ))
-    fig_f.update_layout(**base_layout(), bargap=0.22)
+    fig_f.update_layout(**base_layout(), bargap=0.22, height=420)
     st.plotly_chart(fig_f, use_container_width=True)
 
 # ==========================
