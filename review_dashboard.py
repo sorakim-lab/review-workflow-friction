@@ -75,6 +75,7 @@ html, body, [class*="css"] {
 .tag.orange { background: #fff8f0; color: #ff9500; }
 .tag.green { background: #f0fff4; color: #34c759; }
 .tag.blue { background: #f0f4ff; color: #007aff; }
+.tag.purple { background: #f7f1ff; color: #7d4cff; }
 
 .support-bubble {
     background: linear-gradient(135deg, #007aff11, #5856d611);
@@ -137,6 +138,18 @@ html, body, [class*="css"] {
     font-style: italic;
     margin: 12px 0;
 }
+
+.sim-card {
+    background:#f5f5f7;
+    border-radius:12px;
+    padding:14px 16px;
+    text-align:center;
+}
+
+.small-note {
+    font-size: 12px;
+    color: #86868b;
+}
 </style>
 """, unsafe_allow_html=True)
 
@@ -147,6 +160,11 @@ PALETTE = ["#007aff", "#5856d6", "#ff9500", "#34c759", "#ff3b30", "#af52de", "#f
 SEV_COLOR = {"minor": "#34c759", "moderate": "#ff9500", "major": "#ff3b30"}
 TICK_FONT = dict(family="Inter", size=12, color="#3a3a3c")
 
+REVIEWER_PROFILES = {
+    "Balanced reviewer": {"turnaround_multiplier": 1.00, "loop_multiplier": 1.00, "strictness": "moderate"},
+    "Strict reviewer": {"turnaround_multiplier": 1.20, "loop_multiplier": 1.20, "strictness": "high"},
+    "Fast reviewer": {"turnaround_multiplier": 0.85, "loop_multiplier": 0.90, "strictness": "low"},
+}
 
 @st.cache_data
 def load_data():
@@ -156,36 +174,58 @@ def load_data():
     df["Reopened"] = df["Reopened"].astype(str).str.lower().str.strip()
     return df
 
-
 df = load_data()
-
 
 def pretty_label(text):
     return str(text).replace("_", " ")
 
-
 def classify_comment(text):
     t = text.lower().strip()
 
-    if any(w in t for w in ["regulation", "compliance", "gmp", "regulatory", "requirement", "21 cfr", "ich", "fda"]):
-        return "compliance_concern", "major", "References regulatory language and likely needs clear resolution before approval."
-    if any(w in t for w in ["cross-reference", "cross reference", "does not match", "mismatch", "linked", "referenced in"]):
-        return "cross_reference_issue", "moderate", "Suggests a traceability or linkage gap across related records."
-    if any(w in t for w in ["missing", "not included", "no mention", "absent", "omitted", "not found", "not present"]):
-        return "missing_information", "moderate", "Indicates absent content or incomplete inclusion of required information."
-    if any(w in t for w in ["inconsistent", "inconsistency", "contradicts", "conflict", "discrepancy", "disagrees"]):
-        return "inconsistency", "moderate", "Suggests conflicting information that may require source clarification."
-    if any(w in t for w in ["evidence", "supporting data", "attachment", "no data", "data not", "results not"]):
-        return "evidence_gap", "moderate", "Points to missing or unclear evidence supporting the record."
-    if any(w in t for w in ["section", "page", "refer to", "reference", "see also", "table", "figure"]):
-        return "cross_reference_issue", "moderate", "May involve a section-link or internal reference issue."
-    if any(w in t for w in ["format", "font", "spacing", "layout", "template", "alignment", "indentation"]):
-        return "formatting", "minor", "Formatting-oriented feedback that may be separated from core content issues."
-    if any(w in t for w in ["wording", "phrasing", "unclear", "ambiguous", "rewrite", "rephrase", "sentence", "grammar"]):
-        return "wording", "minor", "Language-level feedback that may be treated as optional depending on context."
+    compliance_terms = ["regulation", "compliance", "gmp", "regulatory", "requirement", "21 cfr", "ich", "fda"]
+    cross_ref_terms = ["cross-reference", "cross reference", "does not match", "mismatch", "linked", "referenced in"]
+    missing_terms = ["missing", "not included", "no mention", "absent", "omitted", "not found", "not present"]
+    inconsistency_terms = ["inconsistent", "inconsistency", "contradicts", "conflict", "discrepancy", "disagrees"]
+    evidence_terms = ["evidence", "supporting data", "attachment", "no data", "data not", "results not"]
+    format_terms = ["format", "font", "spacing", "layout", "template", "alignment", "indentation"]
+    wording_terms = ["wording", "phrasing", "unclear", "ambiguous", "rewrite", "rephrase", "sentence", "grammar"]
+    section_terms = ["section", "page", "refer to", "reference", "see also", "table", "figure"]
 
-    return None, None, None
+    matched_rules = []
 
+    if any(w in t for w in compliance_terms):
+        matched_rules.append("regulatory/compliance language")
+        return "compliance_concern", "major", "References regulatory language and likely needs clear resolution before approval.", matched_rules
+
+    if any(w in t for w in cross_ref_terms):
+        matched_rules.append("cross-reference mismatch")
+        return "cross_reference_issue", "moderate", "Suggests a traceability or linkage gap across related records.", matched_rules
+
+    if any(w in t for w in missing_terms):
+        matched_rules.append("missing-content cue")
+        return "missing_information", "moderate", "Indicates absent content or incomplete inclusion of required information.", matched_rules
+
+    if any(w in t for w in inconsistency_terms):
+        matched_rules.append("inconsistency cue")
+        return "inconsistency", "moderate", "Suggests conflicting information that may require source clarification.", matched_rules
+
+    if any(w in t for w in evidence_terms):
+        matched_rules.append("evidence/data cue")
+        return "evidence_gap", "moderate", "Points to missing or unclear evidence supporting the record.", matched_rules
+
+    if any(w in t for w in format_terms):
+        matched_rules.append("format/layout cue")
+        return "formatting", "minor", "Formatting-oriented feedback that may be separated from core content issues.", matched_rules
+
+    if any(w in t for w in wording_terms):
+        matched_rules.append("wording/clarity cue")
+        return "wording", "minor", "Language-level feedback that may be treated as optional depending on context.", matched_rules
+
+    if any(w in t for w in section_terms):
+        matched_rules.append("section/reference cue")
+        return "cross_reference_issue", "moderate", "May involve a section-link or internal reference issue.", matched_rules
+
+    return None, None, None, []
 
 def base_layout(title):
     return dict(
@@ -206,7 +246,6 @@ def base_layout(title):
             title_font=dict(family="Inter", size=12),
         ),
     )
-
 
 def get_filtered_combo(dataframe, role, category, doctype):
     exact = dataframe[
@@ -230,6 +269,26 @@ def get_filtered_combo(dataframe, role, category, doctype):
 
     return dataframe.copy(), "overall dataset fallback"
 
+def estimate_friction(avg_days, reopen_prob, sim_round, severity, reviewer_profile):
+    severity_weight = {"minor": 8, "moderate": 18, "major": 30}[severity]
+    round_penalty = (sim_round - 1) * 8
+
+    profile = REVIEWER_PROFILES[reviewer_profile]
+    adjusted_days = avg_days * profile["turnaround_multiplier"]
+    adjusted_reopen = reopen_prob * profile["loop_multiplier"]
+
+    friction_score = min(
+        100,
+        (adjusted_days * 3.2) + (adjusted_reopen * 0.45) + round_penalty + severity_weight
+    )
+    return round(adjusted_days, 1), min(100, adjusted_reopen), round(friction_score, 1)
+
+def friction_band(score):
+    if score >= 70:
+        return "high friction", "#ff3b30"
+    if score >= 40:
+        return "moderate friction", "#ff9500"
+    return "lower friction", "#34c759"
 
 st.markdown("## Review Workflow Dashboard")
 st.markdown(
@@ -500,8 +559,8 @@ with tab3:
         """, unsafe_allow_html=True)
 
     with cl2:
-        st.markdown("**🧭 Comment-Type Classifier**")
-        st.caption("Paste a comment · Ctrl+Enter or click to classify")
+        st.markdown("**🧭 Rule-Based Comment Classifier**")
+        st.caption("Paste a review comment to classify likely comment type and severity")
 
         with st.form(key="classifier_form"):
             comment_input = st.text_area(
@@ -514,7 +573,7 @@ with tab3:
 
         if submitted:
             if comment_input.strip():
-                cat_r, sev_r, expl = classify_comment(comment_input)
+                cat_r, sev_r, expl, matched_rules = classify_comment(comment_input)
                 if cat_r is None:
                     st.session_state.classifier_result = {"error": True}
                 else:
@@ -530,6 +589,7 @@ with tab3:
                         "expl": expl,
                         "reopen": reopen_prob,
                         "similar": similar,
+                        "rules": matched_rules,
                     }
             else:
                 st.warning("Please enter a review comment.")
@@ -541,13 +601,19 @@ with tab3:
                 st.warning("Could not classify — try more specific terms such as 'missing', 'section', or 'compliance'.")
             else:
                 sev_color = {"major": "red", "moderate": "orange", "minor": "green"}[r["sev"]]
+                rules_text = ", ".join(r["rules"]) if r["rules"] else "no explicit rule trace"
+
                 st.markdown(f"""
                 <div class="support-bubble">
                   <div class="support-label">CLASSIFICATION RESULT</div>
                   <span class="tag blue">{pretty_label(r['cat'])}</span>
                   <span class="tag {sev_color}">{r['sev']}</span>
+                  <span class="tag purple">rule-based</span>
                   <div style="margin-top:10px;font-size:13px;color:#3a3a3c;line-height:1.6;">{r['expl']}</div>
-                  <div style="margin-top:12px;font-size:12px;color:#86868b;">
+                  <div style="margin-top:10px;font-size:12px;color:#86868b;">
+                    Matched rule: {rules_text}
+                  </div>
+                  <div style="margin-top:8px;font-size:12px;color:#86868b;">
                     Historical reopen rate: <strong style="color:#ff9500;">{r['reopen']:.0f}%</strong>
                   </div>
                 </div>
@@ -739,7 +805,7 @@ with tab5:
             """, unsafe_allow_html=True)
 
     with col_after:
-        st.markdown("#### ✅ After · With checklist + classifier")
+        st.markdown("#### ✅ After · With checklist + classifier + simulation")
         for dim, _, after in ba_data:
             st.markdown(f"""
             <div class="after-card">
@@ -766,7 +832,7 @@ with tab5:
         ),
         (
             "Repeated revisions increased fatigue and reduced confidence.",
-            "Visible revision patterns and bottleneck detection may reduce reactive work."
+            "Visible revision patterns and friction estimation may reduce reactive work."
         ),
     ]
 
@@ -789,6 +855,7 @@ with tab6:
 
     sim_role = "QA"
     sim_doctype = "CAPA"
+    sim_profile = "Balanced reviewer"
 
     s1, s2 = st.columns([1.1, 0.9])
 
@@ -797,6 +864,7 @@ with tab6:
             st.markdown("**Set the scene**")
             sim_doctype = st.selectbox("Document type", ["CAPA", "Deviation", "SOP", "ChangeControl"])
             sim_role = st.selectbox("Your reviewer role", ["QA", "QC", "RA"])
+            sim_profile = st.selectbox("Reviewer profile", list(REVIEWER_PROFILES.keys()))
             sim_round = st.slider("Review round", 1, 5, 1)
             sim_comment = st.text_area(
                 "Your review comment",
@@ -810,9 +878,10 @@ with tab6:
         st.markdown("**How this works**")
         st.markdown("""
         <div class="context-box">
-        This simulation estimates the likely friction profile of a comment based on historical
-        patterns in the prototype dataset — including reopen rates, turnaround times, and loop
-        frequency by comment type, reviewer role, and document type where available.<br><br>
+        This simulation combines three lightweight components: a rule-based comment classifier,
+        pattern-based friction estimation, and a reviewer simulation layer. It uses historical
+        category-level patterns from the prototype dataset and adjusts them by reviewer role,
+        document type, review round, and reviewer profile where available.<br><br>
         It does not replace reviewer judgment. It is designed as a reflection aid that makes the
         possible consequences of comment framing more visible before feedback is submitted.
         </div>
@@ -829,55 +898,59 @@ with tab6:
 
     if run_sim:
         if sim_comment.strip():
-            cat_r, sev_r, expl = classify_comment(sim_comment)
+            cat_r, sev_r, expl, matched_rules = classify_comment(sim_comment)
 
             if cat_r is None:
                 st.warning("Could not classify — try including more specific terms.")
             else:
                 combo, basis = get_filtered_combo(df, sim_role, cat_r, sim_doctype)
+                avg_days_base = combo["DaysToReturn"].mean()
+                reopen_prob_base = combo["Reopened"].eq("yes").mean() * 100
 
-                avg_days_role = combo["DaysToReturn"].mean()
-                reopen_prob = combo["Reopened"].eq("yes").mean() * 100
+                adjusted_days, adjusted_reopen, friction_score = estimate_friction(
+                    avg_days_base,
+                    reopen_prob_base,
+                    sim_round,
+                    sev_r,
+                    sim_profile
+                )
 
-                base_loop = reopen_prob
-                round_penalty = (sim_round - 1) * 10
-                doc_penalty = 5 if basis == "comment type only" else 0
-                loop_risk = min(100, base_loop + round_penalty + doc_penalty)
-
-                sev_color_hex = {
-                    "major": "#ff3b30",
-                    "moderate": "#ff9500",
-                    "minor": "#34c759"
-                }[sev_r]
-
-                loop_color = "#ff3b30" if loop_risk > 60 else "#ff9500" if loop_risk > 30 else "#34c759"
+                band_label, band_color = friction_band(friction_score)
 
                 st.markdown("---")
                 st.markdown("**Simulation Result**")
 
-                r1, r2, r3, r4 = st.columns(4)
-                for col, val, label, color in [
+                r1, r2, r3, r4, r5 = st.columns(5)
+                cards = [
                     (r1, pretty_label(cat_r), "Comment Type", "#007aff"),
-                    (r2, sev_r, "Severity", sev_color_hex),
-                    (r3, f"{avg_days_role:.1f}d", "Expected Turnaround", "#5856d6"),
-                    (r4, f"{loop_risk:.0f}%", "Loop Risk", loop_color),
-                ]:
+                    (r2, sev_r, "Severity", {"major": "#ff3b30", "moderate": "#ff9500", "minor": "#34c759"}[sev_r]),
+                    (r3, f"{adjusted_days:.1f}d", "Expected Turnaround", "#5856d6"),
+                    (r4, f"{adjusted_reopen:.0f}%", "Reopen Likelihood", "#ff9500"),
+                    (r5, f"{friction_score:.0f}", "Friction Score", band_color),
+                ]
+
+                for col, val, label, color in cards:
                     with col:
                         st.markdown(f"""
-                        <div style="background:#f5f5f7;border-radius:12px;padding:14px 16px;text-align:center;">
+                        <div class="sim-card">
                           <div style="font-size:12px;color:#86868b;margin-bottom:6px;">{label}</div>
                           <div style="font-size:20px;font-weight:600;color:{color};">{val}</div>
                         </div>
                         """, unsafe_allow_html=True)
 
+                matched_text = ", ".join(matched_rules) if matched_rules else "no explicit rule trace"
+
                 st.markdown(f"""
                 <div class="support-bubble" style="margin-top:16px;">
-                  <div class="support-label">FRICTION ANALYSIS · {sim_role} · Round {sim_round} · {sim_doctype}</div>
+                  <div class="support-label">FRICTION ANALYSIS · {sim_role} · {sim_profile} · Round {sim_round} · {sim_doctype}</div>
                   {expl}<br><br>
-                  <span style="color:#86868b;font-size:12px;">
-                  Estimation basis: {basis}. Later review rounds are treated as more loop-sensitive because
-                  unresolved earlier issues can amplify revision burden.
-                  </span>
+                  <span class="tag blue">{band_label}</span>
+                  <span class="tag purple">basis: {basis}</span>
+                  <span class="tag">{matched_text}</span>
+                  <div style="margin-top:10px;color:#86868b;font-size:12px;">
+                    Friction score combines turnaround, reopen likelihood, review-round penalty, severity weight,
+                    and reviewer-profile adjustment.
+                  </div>
                 </div>
                 """, unsafe_allow_html=True)
 
@@ -887,8 +960,10 @@ with tab6:
                     rec = "💡 Specify the exact section and expected reference format to reduce back-and-forth."
                 elif cat_r == "missing_information":
                     rec = "💡 Include the exact missing field, its location, and expected format to make the comment easier to act on."
+                elif cat_r == "compliance_concern":
+                    rec = "💡 Anchor the comment to the relevant requirement and separate it clearly from stylistic or formatting suggestions."
                 else:
-                    rec = "💡 Flag this clearly and anchor it to the relevant requirement or source record where possible."
+                    rec = "💡 Frame the comment so the action required is immediately visible to the next reviewer or document owner."
 
                 st.markdown(f"""
                 <div style="background:#f0f4ff;border-radius:12px;padding:14px 16px;margin-top:12px;
@@ -901,7 +976,8 @@ with tab6:
                 st.markdown("**How this comment type compares across all reviewers**")
 
                 compare = df[df["CommentCategory"] == cat_r].groupby("ReviewerRole", as_index=False).agg(
-                    avg_days=("DaysToReturn", "mean")
+                    avg_days=("DaysToReturn", "mean"),
+                    reopen_rate=("Reopened", lambda x: (x == "yes").mean() * 100)
                 ).round(1)
 
                 fig_comp = go.Figure()
@@ -913,7 +989,8 @@ with tab6:
                         text=[row["avg_days"]],
                         textposition="outside",
                         textfont=dict(family="Inter", size=12),
-                        showlegend=False
+                        showlegend=False,
+                        hovertemplate=f"Role: {row['ReviewerRole']}<br>Avg days: {row['avg_days']}<br>Reopen rate: {row['reopen_rate']}%<extra></extra>"
                     ))
                 fig_comp.update_layout(
                     **base_layout(f"Avg Turnaround for '{pretty_label(cat_r)}' by Role"),
