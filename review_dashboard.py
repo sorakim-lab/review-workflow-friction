@@ -4,7 +4,17 @@ import plotly.express as px
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
 
-st.set_page_config(page_title="Review Workflow Dashboard", layout="wide")
+st.set_page_config(
+    page_title="Review Workflow Dashboard",
+    page_icon="📊",
+    layout="wide",
+)
+
+# Fixes applied:
+# - page_icon added (📊)
+# - load_data() wrapped in try/except with st.stop()
+# - sim_role/sim_doctype/sim_profile redundant pre-declarations removed
+# - Design unified: bg #f4f5f7, card border-radius 12px, shadow 0 1px 3px
 
 st.markdown("""
 <style>
@@ -15,14 +25,14 @@ html, body, [class*="css"] {
 }
 
 .stApp {
-    background: #f5f5f7;
+    background: #f4f5f7;
 }
 
 .card {
     background: white;
     padding: 22px 24px;
-    border-radius: 18px;
-    box-shadow: 0 2px 12px rgba(0,0,0,0.06);
+    border-radius: 12px;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.06);
     margin-bottom: 16px;
 }
 
@@ -88,7 +98,7 @@ html, body, [class*="css"] {
 .support-bubble {
     background: linear-gradient(135deg, #007aff11, #5856d611);
     border: 1px solid #007aff22;
-    border-radius: 14px;
+    border-radius: 12px;
     padding: 14px 18px;
     margin-top: 12px;
     font-size: 13px;
@@ -107,7 +117,7 @@ html, body, [class*="css"] {
 .before-card {
     background: #fff1f0;
     border: 1px solid #ff3b3022;
-    border-radius: 14px;
+    border-radius: 12px;
     padding: 18px 20px;
     margin-bottom: 10px;
     font-size: 13px;
@@ -118,7 +128,7 @@ html, body, [class*="css"] {
 .after-card {
     background: #f0fff4;
     border: 1px solid #34c75922;
-    border-radius: 14px;
+    border-radius: 12px;
     padding: 18px 20px;
     margin-bottom: 10px;
     font-size: 13px;
@@ -170,8 +180,8 @@ TICK_FONT = dict(family="Inter", size=12, color="#3a3a3c")
 
 REVIEWER_PROFILES = {
     "Balanced reviewer": {"turnaround_multiplier": 1.00, "loop_multiplier": 1.00, "strictness": "moderate"},
-    "Strict reviewer": {"turnaround_multiplier": 1.20, "loop_multiplier": 1.20, "strictness": "high"},
-    "Fast reviewer": {"turnaround_multiplier": 0.85, "loop_multiplier": 0.90, "strictness": "low"},
+    "Strict reviewer":   {"turnaround_multiplier": 1.20, "loop_multiplier": 1.20, "strictness": "high"},
+    "Fast reviewer":     {"turnaround_multiplier": 0.85, "loop_multiplier": 0.90, "strictness": "low"},
 }
 
 @st.cache_data
@@ -182,7 +192,12 @@ def load_data():
     df["Reopened"] = df["Reopened"].astype(str).str.lower().str.strip()
     return df
 
-df = load_data()
+# FIX: wrap data loading in try/except so app doesn't silently crash
+try:
+    df = load_data()
+except Exception as e:
+    st.error(f"Data loading error: {e}")
+    st.stop()
 
 def display_label(text):
     return str(text).replace("_", " ")
@@ -190,10 +205,10 @@ def display_label(text):
 def axis_label(text):
     text = str(text).replace("_", " ")
     mapping = {
-        "missing information": "missing<br>information",
+        "missing information":  "missing<br>information",
         "cross reference issue": "cross<br>reference<br>issue",
-        "compliance concern": "compliance<br>concern",
-        "evidence gap": "evidence<br>gap",
+        "compliance concern":   "compliance<br>concern",
+        "evidence gap":         "evidence<br>gap",
     }
     return mapping.get(text, text)
 
@@ -203,14 +218,14 @@ def chart_title(text):
 def classify_comment(text):
     t = text.lower().strip()
 
-    compliance_terms = ["regulation", "compliance", "gmp", "regulatory", "requirement", "21 cfr", "ich", "fda"]
-    cross_ref_terms = ["cross-reference", "cross reference", "does not match", "mismatch", "linked", "referenced in"]
-    missing_terms = ["missing", "not included", "no mention", "absent", "omitted", "not found", "not present"]
-    inconsistency_terms = ["inconsistent", "inconsistency", "contradicts", "conflict", "discrepancy", "disagrees"]
-    evidence_terms = ["evidence", "supporting data", "attachment", "no data", "data not", "results not"]
-    format_terms = ["format", "font", "spacing", "layout", "template", "alignment", "indentation"]
-    wording_terms = ["wording", "phrasing", "unclear", "ambiguous", "rewrite", "rephrase", "sentence", "grammar"]
-    section_terms = ["section", "page", "refer to", "reference", "see also", "table", "figure"]
+    compliance_terms   = ["regulation", "compliance", "gmp", "regulatory", "requirement", "21 cfr", "ich", "fda"]
+    cross_ref_terms    = ["cross-reference", "cross reference", "does not match", "mismatch", "linked", "referenced in"]
+    missing_terms      = ["missing", "not included", "no mention", "absent", "omitted", "not found", "not present"]
+    inconsistency_terms= ["inconsistent", "inconsistency", "contradicts", "conflict", "discrepancy", "disagrees"]
+    evidence_terms     = ["evidence", "supporting data", "attachment", "no data", "data not", "results not"]
+    format_terms       = ["format", "font", "spacing", "layout", "template", "alignment", "indentation"]
+    wording_terms      = ["wording", "phrasing", "unclear", "ambiguous", "rewrite", "rephrase", "sentence", "grammar"]
+    section_terms      = ["section", "page", "refer to", "reference", "see also", "table", "figure"]
 
     matched_rules = []
 
@@ -293,10 +308,10 @@ def get_filtered_combo(dataframe, role, category, doctype):
 
 def estimate_friction(avg_days, reopen_prob, sim_round, severity, reviewer_profile):
     severity_weight = {"minor": 8, "moderate": 18, "major": 30}[severity]
-    round_penalty = (sim_round - 1) * 8
+    round_penalty   = (sim_round - 1) * 8
 
-    profile = REVIEWER_PROFILES[reviewer_profile]
-    adjusted_days = avg_days * profile["turnaround_multiplier"]
+    profile         = REVIEWER_PROFILES[reviewer_profile]
+    adjusted_days   = avg_days * profile["turnaround_multiplier"]
     adjusted_reopen = reopen_prob * profile["loop_multiplier"]
 
     friction_score = min(
@@ -306,12 +321,13 @@ def estimate_friction(avg_days, reopen_prob, sim_round, severity, reviewer_profi
     return round(adjusted_days, 1), min(100, adjusted_reopen), round(friction_score, 1)
 
 def friction_band(score):
-    if score >= 70:
-        return "high friction", "#ff3b30"
-    if score >= 40:
-        return "moderate friction", "#ff9500"
-    return "lower friction", "#34c759"
+    if score >= 70: return "high friction",     "#ff3b30"
+    if score >= 40: return "moderate friction", "#ff9500"
+    return              "lower friction",       "#34c759"
 
+# =========================================================
+# Page header
+# =========================================================
 st.markdown("## Review Workflow Dashboard")
 st.markdown(
     '<p class="section-sub">Feedback consistency · Revision loops · Workflow visibility · Prototype</p>',
@@ -338,19 +354,19 @@ tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs([
 # TAB 1 — OVERVIEW
 # ==========================
 with tab1:
-    total_docs = df["CaseID"].nunique()
+    total_docs   = df["CaseID"].nunique()
     total_events = len(df)
-    avg_round = df["ReviewRound"].mean()
-    reopen_rate = (df["Reopened"] == "yes").mean() * 100
-    avg_days = df["DaysToReturn"].mean()
+    avg_round    = df["ReviewRound"].mean()
+    reopen_rate  = (df["Reopened"] == "yes").mean() * 100
+    avg_days     = df["DaysToReturn"].mean()
 
     c1, c2, c3, c4, c5 = st.columns(5)
     for col, val, label, sub in [
-        (c1, str(total_docs), "Documents", "unique cases"),
-        (c2, str(total_events), "Review Events", "total interactions"),
-        (c3, f"{avg_round:.1f}", "Avg Round", "per document"),
-        (c4, f"{reopen_rate:.0f}%", "Reopen Rate", "of all events"),
-        (c5, f"{avg_days:.1f}d", "Avg Turnaround", "days to return"),
+        (c1, str(total_docs),           "Documents",       "unique cases"),
+        (c2, str(total_events),         "Review Events",   "total interactions"),
+        (c3, f"{avg_round:.1f}",        "Avg Round",       "per document"),
+        (c4, f"{reopen_rate:.0f}%",     "Reopen Rate",     "of all events"),
+        (c5, f"{avg_days:.1f}d",        "Avg Turnaround",  "days to return"),
     ]:
         with col:
             st.markdown(f"""
@@ -387,26 +403,16 @@ with tab1:
     sev.columns = ["Severity", "Count"]
 
     fig2 = px.pie(
-        sev,
-        names="Severity",
-        values="Count",
-        color="Severity",
-        color_discrete_map=SEV_COLOR,
-        hole=0.45
+        sev, names="Severity", values="Count",
+        color="Severity", color_discrete_map=SEV_COLOR, hole=0.45
     )
     fig2.update_traces(textfont_size=12)
     fig2.update_layout(
-        plot_bgcolor="white",
-        paper_bgcolor="white",
+        plot_bgcolor="white", paper_bgcolor="white",
         font=dict(family="Inter", size=12, color="#3a3a3c"),
         margin=dict(t=10, b=55, l=10, r=10),
-        legend=dict(
-            orientation="h",
-            y=-0.08,
-            x=0.5,
-            xanchor="center",
-            font=dict(family="Inter", size=12)
-        )
+        legend=dict(orientation="h", y=-0.08, x=0.5, xanchor="center",
+                    font=dict(family="Inter", size=12))
     )
 
     with col_b:
@@ -471,10 +477,8 @@ with tab2:
     h1, h2 = st.columns(2)
 
     pivot1 = df.pivot_table(
-        values="DaysToReturn",
-        index="ReviewerRole",
-        columns="DocType",
-        aggfunc="mean"
+        values="DaysToReturn", index="ReviewerRole",
+        columns="DocType", aggfunc="mean"
     ).round(1)
 
     fig_h1 = go.Figure(data=go.Heatmap(
@@ -487,8 +491,7 @@ with tab2:
         hovertemplate="Role: %{y}<br>DocType: %{x}<br>Avg Days: %{z}<extra></extra>"
     ))
     fig_h1.update_layout(
-        plot_bgcolor="white",
-        paper_bgcolor="white",
+        plot_bgcolor="white", paper_bgcolor="white",
         font=dict(family="Inter", size=12),
         margin=dict(l=20, r=20, t=12, b=20)
     )
@@ -500,11 +503,8 @@ with tab2:
         st.plotly_chart(fig_h1, use_container_width=True)
 
     pivot2 = df.pivot_table(
-        values="EventID",
-        index="ReviewerRole",
-        columns="ReviewRound",
-        aggfunc="count",
-        fill_value=0
+        values="EventID", index="ReviewerRole",
+        columns="ReviewRound", aggfunc="count", fill_value=0
     )
 
     fig_h2 = go.Figure(data=go.Heatmap(
@@ -517,8 +517,7 @@ with tab2:
         hovertemplate="Role: %{y}<br>%{x}<br>Events: %{z}<extra></extra>"
     ))
     fig_h2.update_layout(
-        plot_bgcolor="white",
-        paper_bgcolor="white",
+        plot_bgcolor="white", paper_bgcolor="white",
         font=dict(family="Inter", size=12),
         margin=dict(l=20, r=20, t=12, b=20)
     )
@@ -531,7 +530,8 @@ with tab2:
 
     st.markdown("**High-friction zones** — top 10 slowest review events")
     top_slow = df.nlargest(10, "DaysToReturn")[
-        ["CaseID", "DocType", "ReviewerRole", "ReviewRound", "CommentCategory", "Severity", "DaysToReturn", "Reopened"]
+        ["CaseID", "DocType", "ReviewerRole", "ReviewRound",
+         "CommentCategory", "Severity", "DaysToReturn", "Reopened"]
     ].reset_index(drop=True)
     top_slow["CommentCategory"] = top_slow["CommentCategory"].apply(display_label)
     st.dataframe(top_slow, use_container_width=True, hide_index=True)
@@ -553,23 +553,21 @@ with tab3:
         st.caption("Check off before submitting review comments")
 
         checklist_items = [
-            ("critical", "Compliance requirements clearly referenced", "compliance_concern"),
-            ("critical", "All regulatory citations verified and current", "compliance_concern"),
-            ("moderate", "Cross-references checked for accuracy", "cross_reference_issue"),
-            ("moderate", "Missing information flagged with specific location", "missing_information"),
-            ("moderate", "Inconsistencies noted with original source cited", "inconsistency"),
-            ("minor", "Wording suggestions marked as optional", "wording"),
-            ("minor", "Formatting issues separated from content issues", "formatting"),
-            ("minor", "Evidence gaps described with expected format", "evidence_gap"),
+            ("critical", "Compliance requirements clearly referenced",         "compliance_concern"),
+            ("critical", "All regulatory citations verified and current",       "compliance_concern"),
+            ("moderate", "Cross-references checked for accuracy",               "cross_reference_issue"),
+            ("moderate", "Missing information flagged with specific location",  "missing_information"),
+            ("moderate", "Inconsistencies noted with original source cited",    "inconsistency"),
+            ("minor",    "Wording suggestions marked as optional",              "wording"),
+            ("minor",    "Formatting issues separated from content issues",     "formatting"),
+            ("minor",    "Evidence gaps described with expected format",        "evidence_gap"),
         ]
 
         checked = []
         for severity, item, category in checklist_items:
             col_check, col_text = st.columns([0.08, 0.92])
-
             with col_check:
                 is_checked = st.checkbox("", key=f"chk_{item}")
-
             with col_text:
                 color_class = {"critical": "red", "moderate": "orange", "minor": "green"}[severity]
                 st.markdown(f"""
@@ -579,11 +577,9 @@ with tab3:
                   <span class="tag blue">{display_label(category)}</span>
                 </div>
                 """, unsafe_allow_html=True)
-
             checked.append(is_checked)
 
         pct = int(sum(checked) / len(checklist_items) * 100)
-
         st.markdown(f"""
         <div style="margin-top:16px;padding:14px;background:#f5f5f7;border-radius:12px;">
           <div style="font-size:13px;color:#86868b;margin-bottom:6px;">Checklist completion</div>
@@ -617,28 +613,21 @@ with tab3:
                     similar = df[df["CommentCategory"] == cat_r][
                         ["CaseID", "DocType", "ReviewerRole", "CommentTextShort", "DaysToReturn"]
                     ].head(5).reset_index(drop=True)
-
                     st.session_state.classifier_result = {
                         "error": False,
-                        "cat": cat_r,
-                        "sev": sev_r,
-                        "expl": expl,
-                        "reopen": reopen_prob,
-                        "similar": similar,
-                        "rules": matched_rules,
+                        "cat": cat_r, "sev": sev_r, "expl": expl,
+                        "reopen": reopen_prob, "similar": similar, "rules": matched_rules,
                     }
             else:
                 st.warning("Please enter a review comment.")
 
         if st.session_state.classifier_result:
             r = st.session_state.classifier_result
-
             if r.get("error"):
                 st.warning("Could not classify — try more specific terms such as 'missing', 'section', or 'compliance'.")
             else:
-                sev_color = {"major": "red", "moderate": "orange", "minor": "green"}[r["sev"]]
+                sev_color  = {"major": "red", "moderate": "orange", "minor": "green"}[r["sev"]]
                 rules_text = ", ".join(r["rules"]) if r["rules"] else "no explicit rule trace"
-
                 st.markdown(f"""
                 <div class="support-bubble">
                   <div class="support-label">CLASSIFICATION RESULT</div>
@@ -646,15 +635,12 @@ with tab3:
                   <span class="tag {sev_color}">{r['sev']}</span>
                   <span class="tag purple">rule-based</span>
                   <div style="margin-top:10px;font-size:13px;color:#3a3a3c;line-height:1.6;">{r['expl']}</div>
-                  <div style="margin-top:10px;font-size:12px;color:#86868b;">
-                    Matched rule: {rules_text}
-                  </div>
+                  <div style="margin-top:10px;font-size:12px;color:#86868b;">Matched rule: {rules_text}</div>
                   <div style="margin-top:8px;font-size:12px;color:#86868b;">
                     Historical reopen rate: <strong style="color:#ff9500;">{r['reopen']:.0f}%</strong>
                   </div>
                 </div>
                 """, unsafe_allow_html=True)
-
                 st.markdown("**Similar past comments**")
                 st.dataframe(r["similar"], use_container_width=True, hide_index=True)
 
@@ -700,17 +686,17 @@ with tab4:
     selected_case = st.selectbox("Select a document", sorted(df["CaseID"].unique()), key="journey_selectbox")
     case_df = df[df["CaseID"] == selected_case].copy().sort_values("ReviewRound").reset_index(drop=True)
 
-    doc_type = case_df["DocType"].iloc[0]
-    total_rounds = int(case_df["ReviewRound"].max())
-    total_days = int(case_df["DaysToReturn"].sum())
+    doc_type       = case_df["DocType"].iloc[0]
+    total_rounds   = int(case_df["ReviewRound"].max())
+    total_days     = int(case_df["DaysToReturn"].sum())
     reopened_count = int((case_df["Reopened"] == "yes").sum())
 
     m1, m2, m3, m4 = st.columns(4)
     for col, val, label in [
-        (m1, doc_type, "Doc Type"),
-        (m2, str(total_rounds), "Review Rounds"),
-        (m3, f"{total_days}d", "Total Time"),
-        (m4, str(reopened_count), "Reopened Events"),
+        (m1, doc_type,           "Doc Type"),
+        (m2, str(total_rounds),  "Review Rounds"),
+        (m3, f"{total_days}d",   "Total Time"),
+        (m4, str(reopened_count),"Reopened Events"),
     ]:
         with col:
             st.markdown(f"""
@@ -723,11 +709,11 @@ with tab4:
     st.markdown("**Review Timeline**")
 
     for _, row in case_df.iterrows():
-        sev_colors = {"major": "#ff3b30", "moderate": "#ff9500", "minor": "#34c759"}
-        color = sev_colors.get(str(row["Severity"]).lower(), "#86868b")
+        sev_colors   = {"major": "#ff3b30", "moderate": "#ff9500", "minor": "#34c759"}
+        color        = sev_colors.get(str(row["Severity"]).lower(), "#86868b")
         reopen_badge = '<span class="tag red">reopened</span>' if str(row["Reopened"]).lower() == "yes" else ""
-        sev_lower = str(row["Severity"]).lower()
-        sev_class = "red" if sev_lower == "major" else "orange" if sev_lower == "moderate" else "green"
+        sev_lower    = str(row["Severity"]).lower()
+        sev_class    = "red" if sev_lower == "major" else "orange" if sev_lower == "moderate" else "green"
 
         st.markdown(f"""
         <div style="display:flex;align-items:flex-start;margin-bottom:12px;">
@@ -759,29 +745,18 @@ with tab4:
 
     fig_journey = make_subplots(specs=[[{"secondary_y": True}]])
     fig_journey.add_trace(
-        go.Bar(
-            x=round_summary["ReviewRound"].astype(str),
-            y=round_summary["events"],
-            name="Events",
-            marker_color="#007aff",
-            opacity=0.8
-        ),
+        go.Bar(x=round_summary["ReviewRound"].astype(str), y=round_summary["events"],
+               name="Events", marker_color="#007aff", opacity=0.8),
         secondary_y=False
     )
     fig_journey.add_trace(
-        go.Scatter(
-            x=round_summary["ReviewRound"].astype(str),
-            y=round_summary["avg_days"],
-            name="Avg Days",
-            mode="lines+markers",
-            line=dict(color="#ff9500", width=2),
-            marker=dict(size=8)
-        ),
+        go.Scatter(x=round_summary["ReviewRound"].astype(str), y=round_summary["avg_days"],
+                   name="Avg Days", mode="lines+markers",
+                   line=dict(color="#ff9500", width=2), marker=dict(size=8)),
         secondary_y=True
     )
     fig_journey.update_layout(
-        plot_bgcolor="white",
-        paper_bgcolor="white",
+        plot_bgcolor="white", paper_bgcolor="white",
         font=dict(family="Inter", size=12),
         margin=dict(t=12, b=20, l=30, r=20),
         legend=dict(orientation="h", y=1.08)
@@ -819,11 +794,16 @@ with tab5:
     """, unsafe_allow_html=True)
 
     ba_data = [
-        ("Feedback consistency", "Reviewer-specific and variable", "Potentially more standardized through checklist scaffolds"),
-        ("Revision burden", "Repeated loopbacks on small issues", "May be reduced through clearer distinctions between critical and optional feedback"),
-        ("Workflow visibility", "Bottlenecks are difficult to localize", "Delay-heavy and loop-heavy stages become easier to observe"),
-        ("Analyst confidence", "Often reactive and uncertain", "Could be supported through clearer review logic and expectations"),
-        ("Compliance risk", "None", "None — support layer remains external to validated templates"),
+        ("Feedback consistency", "Reviewer-specific and variable",
+         "Potentially more standardized through checklist scaffolds"),
+        ("Revision burden", "Repeated loopbacks on small issues",
+         "May be reduced through clearer distinctions between critical and optional feedback"),
+        ("Workflow visibility", "Bottlenecks are difficult to localize",
+         "Delay-heavy and loop-heavy stages become easier to observe"),
+        ("Analyst confidence", "Often reactive and uncertain",
+         "Could be supported through clearer review logic and expectations"),
+        ("Compliance risk", "None",
+         "None — support layer remains external to validated templates"),
     ]
 
     col_before, col_after = st.columns(2)
@@ -852,22 +832,14 @@ with tab5:
     st.markdown("**Observed Pain Points from Fieldwork**")
 
     pain_points = [
-        (
-            "Different reviewers applied different feedback standards and writing styles.",
-            "Checklist scaffolds can help standardize expectations across reviewer roles."
-        ),
-        (
-            "Batch numbers and deviation IDs had to be repeatedly copied across linked records.",
-            "Workflow mapping can make cross-reference gaps more visible before review."
-        ),
-        (
-            "Even small clarifications could trigger multi-day review loops.",
-            "Comment-type classification can help distinguish optional wording edits from higher-stakes issues."
-        ),
-        (
-            "Repeated revisions increased fatigue and reduced confidence.",
-            "Visible revision patterns and friction estimation may reduce reactive work."
-        ),
+        ("Different reviewers applied different feedback standards and writing styles.",
+         "Checklist scaffolds can help standardize expectations across reviewer roles."),
+        ("Batch numbers and deviation IDs had to be repeatedly copied across linked records.",
+         "Workflow mapping can make cross-reference gaps more visible before review."),
+        ("Even small clarifications could trigger multi-day review loops.",
+         "Comment-type classification can help distinguish optional wording edits from higher-stakes issues."),
+        ("Repeated revisions increased fatigue and reduced confidence.",
+         "Visible revision patterns and friction estimation may reduce reactive work."),
     ]
 
     for pain, fix in pain_points:
@@ -887,19 +859,16 @@ with tab6:
         unsafe_allow_html=True
     )
 
-    sim_role = "QA"
-    sim_doctype = "CAPA"
-    sim_profile = "Balanced reviewer"
-
     s1, s2 = st.columns([1.1, 0.9])
 
     with s1:
         with st.form(key="sim_form"):
             st.markdown("**Set the scene**")
+            # FIX: removed redundant pre-declarations of sim_role/sim_doctype/sim_profile
             sim_doctype = st.selectbox("Document type", ["CAPA", "Deviation", "SOP", "ChangeControl"])
-            sim_role = st.selectbox("Your reviewer role", ["QA", "QC", "RA"])
+            sim_role    = st.selectbox("Your reviewer role", ["QA", "QC", "RA"])
             sim_profile = st.selectbox("Reviewer profile", list(REVIEWER_PROFILES.keys()))
-            sim_round = st.slider("Review round", 1, 5, 1)
+            sim_round   = st.slider("Review round", 1, 5, 1)
             sim_comment = st.text_area(
                 "Your review comment",
                 placeholder="Write your comment as if you're reviewing a real document...",
@@ -937,33 +906,26 @@ with tab6:
             if cat_r is None:
                 st.warning("Could not classify — try including more specific terms.")
             else:
-                combo, basis = get_filtered_combo(df, sim_role, cat_r, sim_doctype)
-                avg_days_base = combo["DaysToReturn"].mean()
+                combo, basis     = get_filtered_combo(df, sim_role, cat_r, sim_doctype)
+                avg_days_base    = combo["DaysToReturn"].mean()
                 reopen_prob_base = combo["Reopened"].eq("yes").mean() * 100
 
                 adjusted_days, adjusted_reopen, friction_score = estimate_friction(
-                    avg_days_base,
-                    reopen_prob_base,
-                    sim_round,
-                    sev_r,
-                    sim_profile
+                    avg_days_base, reopen_prob_base, sim_round, sev_r, sim_profile
                 )
-
                 band_label, band_color = friction_band(friction_score)
 
                 st.markdown("---")
                 st.markdown("**Simulation Result**")
 
                 r1, r2, r3, r4, r5 = st.columns(5)
-                cards = [
-                    (r1, display_label(cat_r), "Comment Type", "#007aff"),
-                    (r2, sev_r, "Severity", {"major": "#ff3b30", "moderate": "#ff9500", "minor": "#34c759"}[sev_r]),
-                    (r3, f"{adjusted_days:.1f}d", "Expected Turnaround", "#5856d6"),
-                    (r4, f"{adjusted_reopen:.0f}%", "Reopen Likelihood", "#ff9500"),
-                    (r5, f"{friction_score:.0f}", "Friction Score", band_color),
-                ]
-
-                for col, val, label, color in cards:
+                for col, val, label, color in [
+                    (r1, display_label(cat_r),    "Comment Type",       "#007aff"),
+                    (r2, sev_r,                   "Severity",           {"major": "#ff3b30", "moderate": "#ff9500", "minor": "#34c759"}[sev_r]),
+                    (r3, f"{adjusted_days:.1f}d", "Expected Turnaround","#5856d6"),
+                    (r4, f"{adjusted_reopen:.0f}%","Reopen Likelihood", "#ff9500"),
+                    (r5, f"{friction_score:.0f}", "Friction Score",     band_color),
+                ]:
                     with col:
                         st.markdown(f"""
                         <div class="sim-card">
@@ -973,7 +935,6 @@ with tab6:
                         """, unsafe_allow_html=True)
 
                 matched_text = ", ".join(matched_rules) if matched_rules else "no explicit rule trace"
-
                 st.markdown(f"""
                 <div class="support-bubble" style="margin-top:16px;">
                   <div class="support-label">FRICTION ANALYSIS · {sim_role} · {sim_profile} · Round {sim_round} · {sim_doctype}</div>
@@ -982,8 +943,8 @@ with tab6:
                   <span class="tag purple">basis: {basis}</span>
                   <span class="tag">{matched_text}</span>
                   <div style="margin-top:10px;color:#86868b;font-size:12px;">
-                    Friction score combines turnaround, reopen likelihood, review-round penalty, severity weight,
-                    and reviewer-profile adjustment.
+                    Friction score combines turnaround, reopen likelihood, review-round penalty,
+                    severity weight, and reviewer-profile adjustment.
                   </div>
                 </div>
                 """, unsafe_allow_html=True)
